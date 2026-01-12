@@ -2,13 +2,16 @@ package com.example.taskmanager.controller;
 
 import com.example.taskmanager.domain.Task;
 import com.example.taskmanager.domain.TaskStatus;
+import com.example.taskmanager.dto.CreateTaskRequest;
+import com.example.taskmanager.dto.TaskResponse;
+import com.example.taskmanager.dto.UpdateTaskRequest;
 import com.example.taskmanager.service.TaskService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -20,19 +23,16 @@ public class TaskController {
         this.taskService = taskService;
     }
 
-    // POST /api/tasks - Neue Task erstellen
+    // POST /api/tasks
     @PostMapping
-    public ResponseEntity<Task> createTask(@RequestBody Map<String, String> request) {
-        String title = request.get("title");
-        String description = request.get("description");
-        
-        Task task = taskService.createTask(title, description);
-        return ResponseEntity.status(HttpStatus.CREATED).body(task);
+    public ResponseEntity<TaskResponse> createTask(@RequestBody CreateTaskRequest request) {
+        Task task = taskService.createTask(request.getTitle(), request.getDescription());
+        return ResponseEntity.status(HttpStatus.CREATED).body(new TaskResponse(task));
     }
 
-    // GET /api/tasks - Alle Tasks abrufen
+    // GET /api/tasks
     @GetMapping
-    public ResponseEntity<List<Task>> getAllTasks(
+    public ResponseEntity<List<TaskResponse>> getAllTasks(
             @RequestParam(required = false) TaskStatus status) {
         
         List<Task> tasks;
@@ -42,34 +42,38 @@ public class TaskController {
             tasks = taskService.getAllTasks();
         }
         
-        return ResponseEntity.ok(tasks);
+        List<TaskResponse> response = tasks.stream()
+                .map(TaskResponse::new)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(response);
     }
 
-    // GET /api/tasks/{id} - Einzelne Task abrufen
+    // GET /api/tasks/{id}
     @GetMapping("/{id}")
-    public ResponseEntity<Task> getTaskById(@PathVariable Long id) {
+    public ResponseEntity<TaskResponse> getTaskById(@PathVariable Long id) {
         return taskService.getTaskById(id)
-                .map(ResponseEntity::ok)
+                .map(task -> ResponseEntity.ok(new TaskResponse(task)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // PUT /api/tasks/{id} - Task aktualisieren
+    // PUT /api/tasks/{id}
     @PutMapping("/{id}")
-    public ResponseEntity<Task> updateTask(
+    public ResponseEntity<TaskResponse> updateTask(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> updates) {
+            @RequestBody UpdateTaskRequest request) {
         
-        String title = (String) updates.get("title");
-        String description = (String) updates.get("description");
-        TaskStatus status = updates.containsKey("status") 
-                ? TaskStatus.valueOf((String) updates.get("status")) 
-                : null;
+        Task updatedTask = taskService.updateTask(
+                id, 
+                request.getTitle(), 
+                request.getDescription(), 
+                request.getStatus()
+        );
         
-        Task updatedTask = taskService.updateTask(id, title, description, status);
-        return ResponseEntity.ok(updatedTask);
+        return ResponseEntity.ok(new TaskResponse(updatedTask));
     }
 
-    // DELETE /api/tasks/{id} - Task löschen
+    // DELETE /api/tasks/{id}
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
